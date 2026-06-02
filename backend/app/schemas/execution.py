@@ -15,10 +15,21 @@ class ExecutionResponse(BaseModel):
 
     id: UUID
     workflow_id: UUID
+
     execution_status: str
+
+    cancel_requested: bool = False
+
     input_payload: dict[str, Any]
+
     output_payload: dict[str, Any] | None
+
     started_at: datetime | None
+
     completed_at: datetime | None
+
+    cancelled_at: datetime | None
+
     execution_logs: list[Any]
+
     created_at: datetime

@@ -56,6 +56,23 @@ class WorkflowEngine:
 
         try:
             while len(completed | skipped) < len(nodes):
+
+                await self.db.refresh(execution)
+
+                if execution.cancel_requested:
+                    execution.execution_status = "cancelled"
+                    execution.cancelled_at = datetime.now(
+                        timezone.utc
+                    )
+                    execution.output_payload = context
+
+                    await self._log(
+                        execution,
+                        "Workflow execution cancelled by user"
+                    )
+
+                    break
+
                 ready_nodes = [
                     node_id
                     for node_id in nodes
@@ -105,13 +122,16 @@ class WorkflowEngine:
                         ):
                             skipped.add(edge["target"])
 
-            execution.execution_status = "completed"
+            if execution.execution_status != "cancelled":
+                execution.execution_status = "completed"
+
             execution.output_payload = context
 
-            await self._log(
-                execution,
-                "Workflow execution completed"
-            )
+            if execution.execution_status == "completed":
+                await self._log(
+                    execution,
+                    "Workflow execution completed"
+                )
 
         except Exception as exc:
             execution.execution_status = "failed"
@@ -205,10 +225,8 @@ class WorkflowEngine:
 
             node_execution.status = "completed"
             node_execution.output_payload = output
-            node_execution.completed_at = (
-                datetime.now(
-                    timezone.utc
-                )
+            node_execution.completed_at = datetime.now(
+                timezone.utc
             )
 
             await self._log(
@@ -223,14 +241,10 @@ class WorkflowEngine:
 
         except Exception as exc:
             node_execution.status = "failed"
-            node_execution.error_message = str(
-                exc
-            )
+            node_execution.error_message = str(exc)
 
-            node_execution.completed_at = (
-                datetime.now(
-                    timezone.utc
-                )
+            node_execution.completed_at = datetime.now(
+                timezone.utc
             )
 
             await self._log(
@@ -270,10 +284,7 @@ class WorkflowEngine:
     def _dependencies_done(
         self,
         node_id: str,
-        incoming: dict[
-            str,
-            list[dict[str, Any]],
-        ],
+        incoming: dict[str, list[dict[str, Any]]],
         completed: set[str],
         skipped: set[str],
         context: dict[str, Any],
@@ -297,11 +308,7 @@ class WorkflowEngine:
     def _edge_allows(
         self,
         edge: dict[str, Any],
-        source_output: dict[
-            str,
-            Any,
-        ]
-        | None,
+        source_output: dict[str, Any] | None,
     ) -> bool:
         condition = edge.get(
             "condition"
@@ -391,8 +398,7 @@ class WorkflowEngine:
                     value,
                     dict,
                 )
-                and "status_code"
-                in value
+                and "status_code" in value
             ):
                 total += 1
 
