@@ -10,7 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.execution.nodes import NodeExecutionError, execute_node
 from app.execution.retry import execute_with_retry
-from app.models.execution import ExecutionMetric, NodeExecution, WorkflowExecution
+from app.models.execution import (
+    ExecutionMetric,
+    NodeExecution,
+    WorkflowExecution,
+)
 from app.models.workflow import Workflow
 from app.services.websocket_manager import websocket_manager
 
@@ -21,10 +25,15 @@ class WorkflowEngine:
 
     async def run(self, execution_id: UUID) -> None:
         execution = await self._load_execution(execution_id)
+
         workflow = execution.workflow
         definition = workflow.workflow_definition
 
-        nodes = {node["id"]: node for node in definition["nodes"]}
+        nodes = {
+            node["id"]: node
+            for node in definition["nodes"]
+        }
+
         edges = definition.get("edges", [])
 
         outgoing = defaultdict(list)
@@ -44,11 +53,13 @@ class WorkflowEngine:
         started_at = perf_counter()
 
         execution.execution_status = "running"
-        execution.started_at = datetime.now(timezone.utc)
+        execution.started_at = datetime.now(
+            timezone.utc
+        )
 
         await self._log(
             execution,
-            "Workflow execution started"
+            "Workflow execution started",
         )
 
         await self.db.commit()
@@ -60,17 +71,6 @@ class WorkflowEngine:
                 await self.db.refresh(execution)
 
                 if execution.cancel_requested:
-                    execution.execution_status = "cancelled"
-                    execution.cancelled_at = datetime.now(
-                        timezone.utc
-                    )
-                    execution.output_payload = context
-
-                    await self._log(
-                        execution,
-                        "Workflow execution cancelled by user"
-                    )
-
                     break
 
                 ready_nodes = [
@@ -93,14 +93,14 @@ class WorkflowEngine:
                     )
 
                 results = await asyncio.gather(
-                    *(
+                    *[
                         self._run_node(
                             nodes[node_id],
                             context,
                             execution,
                         )
                         for node_id in ready_nodes
-                    ),
+                    ],
                     return_exceptions=True,
                 )
 
@@ -109,7 +109,10 @@ class WorkflowEngine:
                     results,
                     strict=True,
                 ):
-                    if isinstance(result, Exception):
+                    if isinstance(
+                        result,
+                        Exception,
+                    ):
                         raise result
 
                     context[node_id] = result
@@ -120,17 +123,35 @@ class WorkflowEngine:
                             edge,
                             context.get(node_id),
                         ):
-                            skipped.add(edge["target"])
+                            skipped.add(
+                                edge["target"]
+                            )
 
-            if execution.execution_status != "cancelled":
-                execution.execution_status = "completed"
+            await self.db.refresh(execution)
 
             execution.output_payload = context
 
-            if execution.execution_status == "completed":
+            if execution.cancel_requested:
+
+                execution.execution_status = "cancelled"
+
+                if execution.cancelled_at is None:
+                    execution.cancelled_at = datetime.now(
+                        timezone.utc
+                    )
+
                 await self._log(
                     execution,
-                    "Workflow execution completed"
+                    "Workflow execution cancelled by user",
+                )
+
+            else:
+
+                execution.execution_status = "completed"
+
+                await self._log(
+                    execution,
+                    "Workflow execution completed",
                 )
 
         except Exception as exc:
@@ -139,7 +160,7 @@ class WorkflowEngine:
 
             await self._log(
                 execution,
-                f"Workflow execution failed: {exc}"
+                f"Workflow execution failed: {exc}",
             )
 
         finally:
@@ -171,6 +192,7 @@ class WorkflowEngine:
         context: dict[str, Any],
         execution: WorkflowExecution,
     ) -> dict[str, Any]:
+
         node_execution = NodeExecution(
             execution_id=execution.id,
             node_id=node["id"],
@@ -186,52 +208,71 @@ class WorkflowEngine:
 
         await self._log(
             execution,
-            f"Node {node['id']} started"
+            f"Node {node['id']} started",
         )
 
         await self.db.commit()
         await self._broadcast(execution)
 
         try:
-            retry_policy = (
-                node.get(
-                    "configuration",
-                    {},
-                ).get(
-                    "retry_policy",
-                    {},
-                )
-            )
 
-            output = await execute_with_retry(
-                lambda: execute_node(
+            retryable_nodes = {
+                "api_request",
+                "webhook",
+                "ai_prompt",
+            }
+
+            if node["type"] in retryable_nodes:
+
+                retry_policy = (
+                    node.get(
+                        "configuration",
+                        {},
+                    ).get(
+                        "retry_policy",
+                        {},
+                    )
+                )
+
+                output = await execute_with_retry(
+                    lambda: execute_node(
+                        node,
+                        context,
+                        self.db,
+                    ),
+                    max_attempts=retry_policy.get(
+                        "max_attempts",
+                        3,
+                    ),
+                    backoff_seconds=retry_policy.get(
+                        "backoff_seconds",
+                        2,
+                    ),
+                    timeout_seconds=retry_policy.get(
+                        "timeout_seconds",
+                        60,
+                    ),
+                )
+
+            else:
+
+                output = await execute_node(
                     node,
                     context,
                     self.db,
-                ),
-                max_attempts=retry_policy.get(
-                    "max_attempts",
-                    3,
-                ),
-                backoff_seconds=retry_policy.get(
-                    "backoff_seconds",
-                    2,
-                ),
-                timeout_seconds=retry_policy.get(
-                    "timeout_seconds",
-                    60,
-                ),
-            )
+                )
 
             node_execution.status = "completed"
+
             node_execution.output_payload = output
+
             node_execution.completed_at = datetime.now(
                 timezone.utc
             )
 
             await self._log(
                 execution,
-                f"Node {node['id']} completed"
+                f"Node {node['id']} completed",
             )
 
             await self.db.commit()
@@ -240,8 +281,12 @@ class WorkflowEngine:
             return output
 
         except Exception as exc:
+
             node_execution.status = "failed"
-            node_execution.error_message = str(exc)
+
+            node_execution.error_message = str(
+                exc
+            )
 
             node_execution.completed_at = datetime.now(
                 timezone.utc
@@ -249,7 +294,7 @@ class WorkflowEngine:
 
             await self._log(
                 execution,
-                f"Node {node['id']} failed: {exc}"
+                f"Node {node['id']} failed: {exc}",
             )
 
             await self.db.commit()
@@ -261,6 +306,7 @@ class WorkflowEngine:
         self,
         execution_id: UUID,
     ) -> WorkflowExecution:
+
         result = await self.db.execute(
             select(
                 WorkflowExecution
@@ -284,11 +330,12 @@ class WorkflowEngine:
     def _dependencies_done(
         self,
         node_id: str,
-        incoming: dict[str, list[dict[str, Any]]],
-        completed: set[str],
-        skipped: set[str],
-        context: dict[str, Any],
+        incoming: dict,
+        completed: set,
+        skipped: set,
+        context: dict,
     ) -> bool:
+
         dependencies = incoming.get(
             node_id,
             [],
@@ -298,10 +345,8 @@ class WorkflowEngine:
             return True
 
         return all(
-            edge["source"]
-            in completed
-            or edge["source"]
-            in skipped
+            edge["source"] in completed
+            or edge["source"] in skipped
             for edge in dependencies
         )
 
@@ -310,6 +355,7 @@ class WorkflowEngine:
         edge: dict[str, Any],
         source_output: dict[str, Any] | None,
     ) -> bool:
+
         condition = edge.get(
             "condition"
         )
@@ -327,13 +373,14 @@ class WorkflowEngine:
             source_output.get(
                 "result"
             )
-        ) is bool(condition)
+        ) == bool(condition)
 
     async def _log(
         self,
         execution: WorkflowExecution,
         message: str,
     ) -> None:
+
         logs = list(
             execution.execution_logs
             or []
@@ -354,6 +401,7 @@ class WorkflowEngine:
         self,
         execution: WorkflowExecution,
     ) -> None:
+
         await websocket_manager.broadcast(
             str(execution.id),
             {
@@ -370,6 +418,7 @@ class WorkflowEngine:
         self,
         context: dict[str, Any],
     ) -> int:
+
         total = 0
 
         for value in context.values():
@@ -390,6 +439,7 @@ class WorkflowEngine:
         self,
         context: dict[str, Any],
     ) -> int:
+
         total = 0
 
         for value in context.values():
