@@ -14,10 +14,20 @@ class Workflow(Base, UUIDMixin, TimestampMixin):
     workflow_definition: Mapped[dict] = mapped_column(JSON, nullable=False)
     status: Mapped[str] = mapped_column(String(30), default="draft", nullable=False)
     created_by: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    current_version: Mapped[int] = mapped_column(
+        Integer,
+        default=1,
+        nullable=False,
+    )
 
     creator = relationship("User", back_populates="workflows")
     nodes = relationship("WorkflowNode", back_populates="workflow", cascade="all,delete")
     executions = relationship("WorkflowExecution", back_populates="workflow", cascade="all,delete")
+    versions = relationship(
+        "WorkflowVersion",
+        back_populates="workflow",
+        cascade="all,delete",
+    )
 
 
 class WorkflowNode(Base, UUIDMixin, TimestampMixin):
