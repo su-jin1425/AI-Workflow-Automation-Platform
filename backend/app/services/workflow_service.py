@@ -7,6 +7,7 @@ from app.models.user import User
 from app.models.workflow import Workflow, WorkflowNode
 from app.models.workflow_version import WorkflowVersion
 from app.schemas.workflow import WorkflowCreate, WorkflowUpdate
+from app.services.audit_service import AuditService
 
 
 class WorkflowService:
@@ -44,6 +45,14 @@ class WorkflowService:
         self._sync_nodes(
             workflow,
             payload.workflow_definition,
+        )
+
+        await AuditService(self.db).log(
+            user=user,
+            action="CREATE_WORKFLOW",
+            resource_type="workflow",
+            resource_id=workflow.id,
+            details=workflow.workflow_name,
         )
 
         await self.db.commit()
@@ -139,6 +148,14 @@ class WorkflowService:
         if payload.status is not None:
             workflow.status = payload.status
 
+        await AuditService(self.db).log(
+            user=user,
+            action="UPDATE_WORKFLOW",
+            resource_type="workflow",
+            resource_id=workflow.id,
+            details=f"Version {workflow.current_version}",
+        )
+
         await self.db.commit()
 
         await self.db.refresh(workflow)
@@ -158,6 +175,16 @@ class WorkflowService:
 
         if workflow is None:
             return False
+
+        workflow_name = workflow.workflow_name
+
+        await AuditService(self.db).log(
+            user=user,
+            action="DELETE_WORKFLOW",
+            resource_type="workflow",
+            resource_id=workflow.id,
+            details=workflow_name,
+        )
 
         await self.db.delete(workflow)
 
