@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
 from app.models.workflow import Workflow
 from app.models.workflow_version import WorkflowVersion
+from app.services.audit_service import AuditService
 
 
 class WorkflowVersionService:
@@ -108,6 +109,14 @@ class WorkflowVersionService:
 
         self.db.add(
             rollback_version
+        )
+
+        await AuditService(self.db).log(
+            user=user,
+            action="ROLLBACK_WORKFLOW",
+            resource_type="workflow",
+            resource_id=workflow.id,
+            details=f"Rollback to version {version_number}",
         )
 
         await self.db.commit()

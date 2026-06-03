@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.execution import WorkflowExecution
 from app.models.user import User
 from app.models.workflow import Workflow
+from app.services.audit_service import AuditService
 
 
 class ExecutionService:
@@ -41,6 +42,14 @@ class ExecutionService:
 
         self.db.add(execution)
 
+        await AuditService(self.db).log(
+            user=user,
+            action="START_EXECUTION",
+            resource_type="execution",
+            resource_id=execution.id,
+            details=f"Workflow {workflow.workflow_name}",
+        )
+
         await self.db.commit()
         await self.db.refresh(execution)
 
@@ -67,6 +76,14 @@ class ExecutionService:
             return execution
 
         execution.cancel_requested = True
+
+        await AuditService(self.db).log(
+            user=user,
+            action="CANCEL_EXECUTION",
+            resource_type="execution",
+            resource_id=execution.id,
+            details=f"Execution {execution.id}",
+        )
 
         await self.db.commit()
         await self.db.refresh(execution)
