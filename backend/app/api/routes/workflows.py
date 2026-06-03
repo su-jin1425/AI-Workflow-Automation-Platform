@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
+from app.api.permissions import require_permission
 from app.models.user import User
 from app.schemas.workflow import (
     WorkflowCreate,
@@ -32,7 +33,9 @@ router = APIRouter(
 async def create_workflow(
     payload: WorkflowCreate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(
+        require_permission("workflow:create")
+    ),
 ):
     return await WorkflowService(
         db
@@ -48,7 +51,9 @@ async def create_workflow(
 )
 async def list_workflows(
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(
+        require_permission("workflow:view")
+    ),
 ):
     return await WorkflowService(
         db
@@ -64,7 +69,9 @@ async def list_workflows(
 async def get_workflow(
     workflow_id: UUID,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(
+        require_permission("workflow:view")
+    ),
 ):
     workflow = await WorkflowService(
         db
@@ -90,7 +97,9 @@ async def update_workflow(
     workflow_id: UUID,
     payload: WorkflowUpdate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(
+        require_permission("workflow:update")
+    ),
 ):
     workflow = await WorkflowService(
         db
@@ -116,7 +125,9 @@ async def update_workflow(
 async def delete_workflow(
     workflow_id: UUID,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(
+        require_permission("workflow:delete")
+    ),
 ):
     deleted = await WorkflowService(
         db
@@ -141,7 +152,9 @@ async def delete_workflow(
 async def list_versions(
     workflow_id: UUID,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(
+        require_permission("workflow:view")
+    ),
 ):
     return await WorkflowVersionService(
         db
@@ -159,7 +172,9 @@ async def get_version(
     workflow_id: UUID,
     version_number: int,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(
+        require_permission("workflow:view")
+    ),
 ):
     version = await WorkflowVersionService(
         db
@@ -186,7 +201,9 @@ async def rollback_workflow(
     workflow_id: UUID,
     version_number: int,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(
+        require_permission("workflow:rollback")
+    ),
 ):
     workflow = await WorkflowVersionService(
         db
