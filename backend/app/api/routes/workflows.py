@@ -216,7 +216,7 @@ async def rollback_workflow(
     if workflow is None:
         raise HTTPException(
             status_code=404,
-            detail="Version not found",
+            detail="Workflow not found",
         )
 
     return workflow
