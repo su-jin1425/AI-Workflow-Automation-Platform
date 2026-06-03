@@ -1,4 +1,5 @@
 import pytest
+from fastapi import HTTPException
 
 from app.execution.validator import (
     validate_workflow_definition,
@@ -53,7 +54,7 @@ def test_delay_negative_seconds_rejected():
         "edges": [],
     }
 
-    with pytest.raises(ValueError):
+    with pytest.raises(HTTPException):
         validate_workflow_definition(workflow)
 
 
@@ -69,7 +70,7 @@ def test_delay_missing_seconds_rejected():
         "edges": [],
     }
 
-    with pytest.raises(ValueError):
+    with pytest.raises(HTTPException):
         validate_workflow_definition(workflow)
 
 

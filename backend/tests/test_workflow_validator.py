@@ -1,4 +1,5 @@
 import pytest
+from fastapi import HTTPException
 
 from app.execution.validator import (
     validate_workflow_definition,
@@ -21,7 +22,7 @@ def test_valid_workflow_passes():
 
 
 def test_empty_workflow_rejected():
-    with pytest.raises(ValueError):
+    with pytest.raises(HTTPException):
         validate_workflow_definition(
             {
                 "nodes": [],
@@ -49,7 +50,7 @@ def test_duplicate_node_id_rejected():
         "edges": [],
     }
 
-    with pytest.raises(ValueError):
+    with pytest.raises(HTTPException):
         validate_workflow_definition(workflow)
 
 
@@ -65,7 +66,7 @@ def test_unsupported_node_type_rejected():
         "edges": [],
     }
 
-    with pytest.raises(ValueError):
+    with pytest.raises(HTTPException):
         validate_workflow_definition(workflow)
 
 
@@ -83,7 +84,7 @@ def test_invalid_configuration_rejected():
         "edges": [],
     }
 
-    with pytest.raises(ValueError):
+    with pytest.raises(HTTPException):
         validate_workflow_definition(workflow)
 
 
@@ -104,7 +105,7 @@ def test_invalid_edge_reference_rejected():
         ],
     }
 
-    with pytest.raises(ValueError):
+    with pytest.raises(HTTPException):
         validate_workflow_definition(workflow)
 
 
@@ -134,7 +135,7 @@ def test_cycle_detection_rejected():
         ],
     }
 
-    with pytest.raises(ValueError):
+    with pytest.raises(HTTPException):
         validate_workflow_definition(workflow)
 
 
@@ -193,12 +194,12 @@ def test_self_loop_rejected():
         ],
     }
 
-    with pytest.raises(ValueError):
+    with pytest.raises(HTTPException):
         validate_workflow_definition(workflow)
 
 
 def test_missing_nodes_key_rejected():
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPException):
         validate_workflow_definition(
             {
                 "edges": [],
@@ -207,7 +208,7 @@ def test_missing_nodes_key_rejected():
 
 
 def test_missing_edges_key_rejected():
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPException):
         validate_workflow_definition(
             {
                 "nodes": [],
@@ -216,7 +217,7 @@ def test_missing_edges_key_rejected():
 
 
 def test_nodes_must_be_list():
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPException):
         validate_workflow_definition(
             {
                 "nodes": {},
@@ -226,7 +227,7 @@ def test_nodes_must_be_list():
 
 
 def test_edges_must_be_list():
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPException):
         validate_workflow_definition(
             {
                 "nodes": [],

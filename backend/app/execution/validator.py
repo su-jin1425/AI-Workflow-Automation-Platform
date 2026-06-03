@@ -34,16 +34,48 @@ def validate_workflow_definition(definition: dict[str, Any]) -> None:
     for node in nodes:
         if not isinstance(node, dict):
             raise HTTPException(status_code=422, detail="Each node must be an object")
+
         node_id = node.get("id")
         node_type = node.get("type")
+
         if not isinstance(node_id, str) or not node_id:
             raise HTTPException(status_code=422, detail="Each node needs a string id")
+
         if node_id in node_ids:
             raise HTTPException(status_code=422, detail=f"Duplicate node id: {node_id}")
+
         if node_type not in SUPPORTED_NODE_TYPES:
             raise HTTPException(status_code=422, detail=f"Unsupported node type: {node_type}")
-        if not isinstance(node.get("configuration", {}), dict):
-            raise HTTPException(status_code=422, detail=f"Node {node_id} configuration must be an object")
+
+        configuration = node.get("configuration", {})
+
+        if not isinstance(configuration, dict):
+            raise HTTPException(
+                status_code=422,
+                detail=f"Node {node_id} configuration must be an object",
+            )
+
+        if node_type == "delay":
+            seconds = configuration.get("seconds")
+
+            if seconds is None:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Delay node {node_id} requires seconds",
+                )
+
+            if not isinstance(seconds, (int, float)):
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Delay node {node_id} seconds must be numeric",
+                )
+
+            if seconds < 0:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Delay node {node_id} seconds cannot be negative",
+                )
+
         node_ids.add(node_id)
 
     adjacency: dict[str, list[str]] = defaultdict(list)
