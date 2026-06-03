@@ -30,7 +30,7 @@ class User(
 
     role: Mapped[str] = mapped_column(
         String(30),
-        default="Developer",
+        default="Viewer",
         nullable=False,
     )
 

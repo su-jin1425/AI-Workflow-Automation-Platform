@@ -4,6 +4,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
+from app.api.permissions import require_permission
 from app.core.config import settings
 from app.execution.runner import run_workflow_execution
 from app.models.user import User
@@ -26,7 +27,9 @@ async def start_execution(
     payload: ExecutionStartRequest,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(
+        require_permission("execution:start")
+    ),
 ):
     service = ExecutionService(db)
 
@@ -62,7 +65,9 @@ async def start_execution(
 async def cancel_execution(
     execution_id: UUID,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(
+        require_permission("execution:cancel")
+    ),
 ):
     execution = await ExecutionService(
         db
@@ -86,7 +91,9 @@ async def cancel_execution(
 )
 async def list_executions(
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(
+        require_permission("execution:view")
+    ),
 ):
     return await ExecutionService(
         db
@@ -100,7 +107,9 @@ async def list_executions(
 async def get_execution(
     execution_id: UUID,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(
+        require_permission("execution:view")
+    ),
 ):
     execution = await ExecutionService(
         db
@@ -122,7 +131,9 @@ async def get_execution(
 async def get_execution_logs(
     execution_id: UUID,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(
+        require_permission("execution:view")
+    ),
 ):
     logs = await ExecutionService(
         db

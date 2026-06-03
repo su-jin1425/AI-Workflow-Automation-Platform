@@ -20,7 +20,7 @@ class AuthService:
             name=payload.name,
             email=payload.email,
             password_hash=hash_password(payload.password),
-            role="Developer",
+            role="Viewer",
         )
         self.db.add(user)
         await self.db.commit()
